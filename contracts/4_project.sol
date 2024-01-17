@@ -1,200 +1,131 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0 < 0.9.0;
-
-
-
-contract local{
-
-address owner;
-
-constructor (){
-
-    owner = msg.sender;
-
-}
-
-
-
-
-//Checking the balance of contract
-
-function get_balance() public view returns(uint){
-    return address(this).balance;
-}
-
-
-//Transfering the money collected to owner 
-
-function remove_eth() public {
-
-    require(msg.sender==owner);
-    address payable  user = payable (owner);
-    user.transfer(get_balance());
-
-}
-
-
-//Product details
-
-struct Product {
-
-string name;
-string name_of_company;
-address payable company_owner;
-uint expiry;
-bool expiry_status;
-uint uuid;
-uint cost;  //This is in ether too 
-bool sold; // By default it is false only
-
-}
-
-mapping (uint=>Product) public no_of_products;
-uint nth_product=0;
-
-
-//Registering new prodcuts
-
-function register(string memory _name, string memory _name_of_company,address payable  _company_owner,uint _expiry,uint _uuid, uint _cost)public payable  
-{
-
-
-Product storage newproduct = no_of_products[nth_product];
-nth_product++;
-
-newproduct.name = _name;
-newproduct.name_of_company = _name_of_company;
-newproduct.company_owner = _company_owner;
-newproduct.expiry = _expiry;
-newproduct.uuid = _uuid;
-newproduct.cost = _cost;
-
-require(msg.value == (5*(_cost)/100),"Please pay the only 5% of your product cost");
-
-
-}
-
-
-
-
-
-
-
-//Users data
-
-struct Users{
-
-address user_address;
-string name;
-string password;   //This is the password of user thriugh which he wil login.This will be 12 characters long  
-
-}
-
-mapping (uint => Users) private no_of_users;   //For storing the no of users
-uint nth_user;   //This  will also uniquely represent each user
-
-bool status_of_login=false;  //THis is necesssary consition to check that users login before sacnning qr
-
-
-
-
-
-//Sign up for first time users
-
-function sign_in(address _user_address, string memory _name, string memory _password) public 
-{
-
-    Users storage new_user = no_of_users[nth_user];
-    nth_user++;
-
-    new_user.user_address = _user_address;
-    new_user.name = _name;
-    new_user.password = _password;
-    status_of_login = true;
-}
-
-// Login 
-
-function login(address _user_address,string memory _password)public 
-{
-
-//Here i will get only address and then i will run a for loop and check for that address in whole no_of_users mapping . But this is making more gas 
-
-
-    Users storage this_user = no_of_users[nth_user];
-    this_user.user_address = _user_address;
-    this_user.password = _password;
-
-
-    status_of_login = true;
-
-
-
-}
-
-
-
-
-
-//Scaning the QR code 
-
-
-function scan_qr() public view returns(uint)
-{
-
-
-
-    require(status_of_login == true,"Please login first");
-    //Now after scanning i will get an uuid on screen which i will compare with my all uuids in the no_of_products and according to require condition i will say my answer 
-    //After veriyfu=ing the rpoduct add check its expiry too
-    require(block.timestamp<expiry,"Product is expired");
-
-
-    //We will return the product nth_product number which will be used in payment
-
-
-
-    return (nth_product);
-}
-
-
-
-
-
-//Paying for the cost of product through ether
-
-function pay_for_product() payable public  
-{     
-
-require(status_of_login == true);
-
-
-    Product storage this_product = no_of_products[scan_qr()];    //We got the same product which was scanned using its nth_product number
-
-    require(this_product.sold==false,"This product is already sold");
-    require(msg.value == this_product.cost);
-    this_product.sold = true;
-
-    this_product.company_owner.transfer(this_product.cost);    //Transfering the ether back to company
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pragma solidity >=0.5.0 <0.9.0;
+
+contract CrowdFunding {
+    mapping(address => uint256) public contributors; // uint is the value of ether they are donating
+    address public manager;
+    uint256 public minContribution;
+    uint256 public target;
+    uint256 public deadline;
+    uint256 public raisedAmount; //To compare with target amount
+    uint256 public noofContributors; // For voting
+
+    constructor(
+        uint256 _deadline,
+        uint256 _target,
+        uint256 _minContribution
+    ) {
+        // Remmeber time is in seconds
+
+        manager = msg.sender;
+        deadline = block.timestamp + _deadline;
+        target = _target;
+        minContribution = _minContribution;
+    }
+
+    function sendEthertocontract() public payable {
+        require(
+            deadline > block.timestamp,
+            "Sorry!Deadline has already reached"
+        ); //To check if the deadline is not crossed na
+        require(
+            msg.value >= minContribution,
+            "Minimum Contribution is not met"
+        );
+
+        // So ab yaha pe yeh if chech karege ki mere address pe value agar 0 hai toh mera yeh first contribution hoga so noofcontributors ++ honge now contributors mein naya address create hua and uspe msg.vlaue (ethers donated) gaye and by deafult us address pe 0 hi hoga so = 0 + msg.value. and raised amount jo bhi hui hogi usme add hoga yeh msg.value .Now if he redontes then if check hoga but is baar contributors meinalready vlaue hai at that address so noofcontributors ++ nhai honge aur baki ka procedure same hi hoga
+
+        if (contributors[msg.sender] == 0) {
+            // Till this time our contribution is empty and as soon as if likha , contributions mein msg.sender store hua.Also agar as it doesnt store anything so even if we write just if(contributors[msg.sender]){noofcontributors++;} then also code will run as by default usme kuch nahi hai
+            noofContributors++;
+        }
+
+        // Noofcontributors ++ is imp bec in its absence  ppl  can send 500 wei 5 times as 100 wie and then their vote would inc so if condition is there
+        contributors[msg.sender] = contributors[msg.sender] + msg.value; //Contributors mein jisne send kiya uska ddress store hua at index and then us index pe uske ether store hua
+        raisedAmount = raisedAmount + msg.value;
+    }
+
+    function getBalance() public view returns (uint256) {
+        return address(this).balance;
+    }
+
+    //Now refunding the money
+    function refund() public {
+        require(
+            deadline < block.timestamp && raisedAmount < target,
+            "Right now you are not eligiblre for refund "
+        );
+        require(contributors[msg.sender] > 0, "You didnt participated only"); // THis is for those who didnt participated but are taking money
+
+        address payable user = payable(msg.sender); // By this we made the user payable ie now trhe user can take money
+        user.transfer(contributors[msg.sender]); // Now we refunded the money
+        contributors[msg.sender] = 0; //Bec we refunded money so account balance 0 kiya
+    }
+
+    // Jo funds collect hore hai till deadline usse hum bahot saare kaam karne wale hai like charity, business, projects etc
+
+    struct request {
+        string description; // manager will describe the project for which he need money
+        address payable recepient; // woh sab money is project ke address ko jane wali hai
+        uint256 value; /// kitne money dene wale hai hum recepient ko
+        bool compeleted; //To check if this request is complete or not
+        uint256 noofVoters; // To check how many voted
+        mapping(address => bool) voters; //For storing the ones which have done voting. we are storing yes or no for a specific address
+    }
+
+    mapping(uint256 => request) public noofrequest; // THi one is storing the no fo requests. Eg- manager requested one for charity, one for business etc etc . So we are storing at different indexes the different request.
+
+    uint256 public numrequest; // bec unlike array mapping mein incrmenet wali chhez possible nahi hoti so we are using this .This is like a pointer in arrays
+
+    modifier onlyManager() {
+        // INstead of modifier we can write this in our createrequest also
+        require(msg.sender == manager,"Only manager can call rgis function");
+        _;
+    }
+
+    function createRequest(
+        string memory _description,
+        address payable _recepient,
+        uint256 _value
+    ) public onlyManager {
+        //This request can only be created by manager
+        // Basically uper jo struc banayahai na (request) that is like a class amd niche ka newRequest is like object of that class
+        request storage newRequest = noofrequest[numrequest]; // So here we created a newreuest pf type request(so we wrote request storage newrequest) and stored it in our noofrequest mapping. numrequest is 0 initially and phir increment kiya.
+        numrequest++;
+        newRequest.description = _description;
+        newRequest.recepient = _recepient;
+        newRequest.value = _value;
+        newRequest.compeleted = false; // jab request bani hai tab wo
+        newRequest.noofVoters = 0; // as function jab bana hoga tab noofvoters 0 honge
+    }
+
+    //Now we will start to vote
+
+    function voteRequest(uint256 _numrequest) public {
+        require(
+            contributors[msg.sender] > 0,
+            "You must be a contributor to participate in voting"
+        );
+        request storage thisRequest = noofrequest[_numrequest]; // We are pointing ki that specific request to vote karna hai so we stored that request in a new struc(of type request) ie thisRequest
+        require(
+            thisRequest.voters[msg.sender] == false,
+            "You have already voted"
+        ); // voters is an mapping and in that we checked if that address ne vote kiya hai ya nahi.And initially bool mein false higa agar vote nahi kiya hoga
+        thisRequest.voters[msg.sender] = true; // now person voted
+        thisRequest.noofVoters++;
+    }
+
+    // Now if noofvotes are in favour of a particular request then we will give him money
+
+    function makepaymenttoRequest(uint _numrequest) public onlyManager 
+    {
+        require(target<raisedAmount,"Sorry target is not met yet");
+        request storage newrequest = noofrequest[_numrequest];
+        require(newrequest.compeleted== false,"Already money has been transfered");   // To check if money is already transfered 
+        require(newrequest.noofVoters > noofContributors/2,"Majority doesnt support");  // By this we checked that if majority has voted in favour or not because when we click vote then a positive vote is given
+        newrequest.recepient.transfer(newrequest.value);
+        newrequest.compeleted=  true;
+    }
 
 
 
